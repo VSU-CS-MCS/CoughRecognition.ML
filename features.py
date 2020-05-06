@@ -18,5 +18,7 @@ def get_mfcc(wave_data: WaveData, **kwargs):
     return mfcc(
         np.array([float(i) for i in wave_data.data]),
         wave_data.framerate,
+        norm=kwargs.get('norm', None),
         dct_type=kwargs.get('dct_type', 2),
-        n_mfcc=kwargs.get('n_mfcc', 20))
+        n_mfcc=kwargs.get('n_mfcc', 40),
+        n_fft=kwargs.get('n_fft', 2048))

@@ -32,19 +32,19 @@ dataset = get_dataset()
 #%%
 dataframe = pd.DataFrame.from_records([w.to_dict() for w in dataset])
 #%%
-n_mfcc = 40
-dataframe['mfccs'] = dataframe.apply(lambda it: get_mfcc(it, n_mfcc=n_mfcc), axis=1)
+mfccs = 'mfccs'
+dataframe[mfccs] = dataframe.apply(lambda it: get_mfcc(it), axis=1)
 #%%
 x = list()
 for index, row in dataframe.iterrows():
     mfccs_features = dict()
-    mfccs_min = np.min(row['mfccs'], axis=1)
-    mfccs_max = np.max(row['mfccs'], axis=1)
-    mfccs_median = np.median(row['mfccs'], axis=1)
-    mfccs_mean = np.mean(row['mfccs'], axis=1)
-    mfccs_variance = np.var(row['mfccs'], axis=1)
-    mfccs_skeweness = skew(row['mfccs'], axis=1)
-    mfccs_kurtosis = kurtosis(row['mfccs'], axis=1)
+    mfccs_min = np.min(row[mfccs], axis=1)
+    mfccs_max = np.max(row[mfccs], axis=1)
+    mfccs_median = np.median(row[mfccs], axis=1)
+    mfccs_mean = np.mean(row[mfccs], axis=1)
+    mfccs_variance = np.var(row[mfccs], axis=1)
+    mfccs_skeweness = skew(row[mfccs], axis=1)
+    mfccs_kurtosis = kurtosis(row[mfccs], axis=1)
     mfccs_features = np.concatenate([
         mfccs_min,
         mfccs_max,
@@ -61,8 +61,11 @@ y = dataframe['cough_type']
 X_train, X_test, y_train, y_test = train_test_split(
     X,
     y,
-    test_size=0.1,
-    random_state=42)
+    test_size=0.3)
+X_validate, X_test, y_validate, y_test = train_test_split(
+    X_test,
+    y_test,
+    test_size=0.5)
 #%%
 model = tf.keras.Sequential([
     tf.keras.layers.Dense(2048, activation='relu'),
@@ -77,18 +80,11 @@ model.compile(
     loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
     metrics=['accuracy'])
 #%%
-log_dir= ".\\logs\\test\\" + datetime.now().strftime("%Y%m%d-%H%M%S")
-tensorboard_callback = keras.callbacks.TensorBoard(
-    log_dir=log_dir,
-    histogram_freq=1)
 history: keras.callbacks.History = model.fit(
     x=X_train.values,
     y=y_train.values,
-    validation_data=(X_test.values, y_test.values),
     epochs=100,
-    callbacks=[tensorboard_callback])
-#%%
-labels = ['Normal', 'Productive', 'Whistling']
+    validation_data=(X_validate.values, y_validate.values))
 #%%
 Y_pred = model.predict(X)
 y_pred = np.argmax(Y_pred, axis=1)
