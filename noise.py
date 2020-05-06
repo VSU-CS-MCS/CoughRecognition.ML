@@ -16,12 +16,13 @@ def white_gaussian_noise(std, length):
             noise_std,
             len(cough.wave_data.data))
 #%%
-noise_audio_amount = 10
-noise_std = 25
+noise_std = 100
 noise_data: List[CoughData] = []
 for cough in dataset:
     if 'Noise' in cough.name:
         continue
+
+    noise_audio_amount = 1 if cough.cough_type == CoughType.Normal else 10
 
     for i in range(noise_audio_amount):
         noise = white_gaussian_noise(
