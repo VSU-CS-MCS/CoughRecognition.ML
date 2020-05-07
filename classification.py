@@ -21,6 +21,8 @@ import matplotlib.pyplot as plt
 
 from charts import *
 #%%
+seed = 666
+#%%
 dataset = get_dataset()
 #%%
 dataframe = pd.DataFrame.from_records([w.to_dict() for w in dataset])
@@ -36,19 +38,29 @@ y = dataframe['cough_type']
 X_train, X_test, y_train, y_test = train_test_split(
     X,
     y,
-    test_size=0.8)
+    test_size=0.3,
+    random_state=seed)
 X_test, X_validate, y_test, y_validate = train_test_split(
     X_test,
     y_test,
-    test_size=0.5)
+    test_size=0.5,
+    random_state=seed)
+#%%
+X_train_torch = torch.tensor(X_train.values).float()
+X_validate_torch = torch.tensor(X_validate.values).float()
+X_test_torch = torch.tensor(X_test.values).float()
+y_train_torch = torch.tensor(y_train.values)
+y_test_torch = torch.tensor(y_test.values)
+y_validate_torch = torch.tensor(y_validate.values)
 #%%
 units = 1024
 n_classes = 3
 dropout = 0.1
-activation = 'relu'
-end_activation = 'softmax'
 model = torch.nn.Sequential(
     torch.nn.Linear(feature_count, units),
+    torch.nn.SELU(),
+    torch.nn.AlphaDropout(dropout),
+    torch.nn.Linear(units, units),
     torch.nn.SELU(),
     torch.nn.AlphaDropout(dropout),
     torch.nn.Linear(units, units),
@@ -78,29 +90,45 @@ model = torch.nn.Sequential(
 loss_fn = torch.nn.CrossEntropyLoss()
 optimizer = torch.optim.AdamW(model.parameters())
 #%%
-X_train_torch = torch.tensor(X_train.values).float()
-X_validate_torch = torch.tensor(X_validate.values).float()
-X_test_torch = torch.tensor(X_test.values).float()
-y_train_torch = torch.tensor(y_train.values)
-y_test_torch = torch.tensor(y_test.values)
-y_validate_torch = torch.tensor(y_validate.values)
-#%%
-losses = []
+train_losses = []
+train_accs = []
 val_losses = []
-for t in range(500):
-    y_train_pred = model(X_train_torch)
-    loss = loss_fn(y_train_pred, y_train_torch)
-    losses.append(loss)
+val_accs = []
+exit_iterations = 50
+exit_margin = 0.01
+for t in range(1000):
+    y_train_pred_torch = model(X_train_torch)
+    train_loss = loss_fn(y_train_pred_torch, y_train_torch)
+    train_losses.append(train_loss)
 
-    y_validate_pred = model(X_validate_torch)
-    val_loss = loss_fn(y_validate_pred, y_validate_torch)
+    y_validate_pred_torch = model(X_validate_torch)
+    val_loss = loss_fn(y_validate_pred_torch, y_validate_torch)
     val_losses.append(val_loss)
 
     optimizer.zero_grad()
-    loss.backward()
+    train_loss.backward()
     optimizer.step()
+
+    _, y_train_pred = torch.max(y_train_pred_torch, 1)
+    train_acc = accuracy_score(y_train, y_train_pred)
+    train_accs.append(train_acc)
+
+    _, y_validate_pred = torch.max(y_validate_pred_torch, 1)
+    val_acc = accuracy_score(y_validate, y_validate_pred)
+    val_accs.append(val_acc)
+
+    if (t % exit_iterations == exit_iterations - 1):
+        print(f'{t} {train_loss} {train_acc} {val_loss} {val_acc}')
+
+    if (t > exit_iterations):
+        newAccMax = np.max(val_accs)
+        oldAccMax = np.max(val_accs[:len(val_accs)-exit_iterations])
+        if (newAccMax - oldAccMax < exit_margin):
+            print(f'Validation Slow Learning detected {t}')
+            print(newAccMax)
+            print(oldAccMax)
 #%%
-plt.plot(losses)
+plt.plot(train_losses)
 #%%
 plt.plot(val_losses)
 #%%
