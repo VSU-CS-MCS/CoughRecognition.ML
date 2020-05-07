@@ -56,36 +56,24 @@ y_validate_torch = torch.tensor(y_validate.values)
 units = 1024
 n_classes = 3
 dropout = 0.1
-model = torch.nn.Sequential(
+hidden_layers_amount = 8
+
+model_args = [
     torch.nn.Linear(feature_count, units),
     torch.nn.SELU(),
     torch.nn.AlphaDropout(dropout),
-    torch.nn.Linear(units, units),
-    torch.nn.SELU(),
-    torch.nn.AlphaDropout(dropout),
-    torch.nn.Linear(units, units),
-    torch.nn.SELU(),
-    torch.nn.AlphaDropout(dropout),
-    torch.nn.Linear(units, units),
-    torch.nn.SELU(),
-    torch.nn.AlphaDropout(dropout),
-    torch.nn.Linear(units, units),
-    torch.nn.SELU(),
-    torch.nn.AlphaDropout(dropout),
-    torch.nn.Linear(units, units),
-    torch.nn.SELU(),
-    torch.nn.AlphaDropout(dropout),
-    torch.nn.Linear(units, units),
-    torch.nn.SELU(),
-    torch.nn.AlphaDropout(dropout),
-    torch.nn.Linear(units, units),
-    torch.nn.SELU(),
-    torch.nn.AlphaDropout(dropout),
-    torch.nn.Linear(units, units),
-    torch.nn.SELU(),
-    torch.nn.AlphaDropout(dropout),
-    torch.nn.Linear(units, n_classes),
-)
+]
+
+for layer_index in range(hidden_layers_amount - 1):
+    model_args.extend([
+        torch.nn.Linear(units, units),
+        torch.nn.SELU(),
+        torch.nn.AlphaDropout(dropout)
+    ])
+
+model_args.append(torch.nn.Linear(units, n_classes))
+
+model = torch.nn.Sequential(*model_args)
 #%%
 loss_fn = torch.nn.CrossEntropyLoss()
 optimizer = torch.optim.AdamW(model.parameters())
@@ -94,8 +82,6 @@ train_losses = []
 train_accs = []
 val_losses = []
 val_accs = []
-exit_iterations = 50
-exit_margin = 0.01
 for t in range(1000):
     y_train_pred_torch = model(X_train_torch)
     train_loss = loss_fn(y_train_pred_torch, y_train_torch)
@@ -105,10 +91,6 @@ for t in range(1000):
     val_loss = loss_fn(y_validate_pred_torch, y_validate_torch)
     val_losses.append(val_loss)
 
-    optimizer.zero_grad()
-    train_loss.backward()
-    optimizer.step()
-
     _, y_train_pred = torch.max(y_train_pred_torch, 1)
     train_acc = accuracy_score(y_train, y_train_pred)
     train_accs.append(train_acc)
@@ -117,16 +99,12 @@ for t in range(1000):
     val_acc = accuracy_score(y_validate, y_validate_pred)
     val_accs.append(val_acc)
 
-    if (t % exit_iterations == exit_iterations - 1):
-        print(f'{t} {train_loss} {train_acc} {val_loss} {val_acc}')
+    optimizer.zero_grad()
+    train_loss.backward()
+    optimizer.step()
 
-    if (t > exit_iterations):
-        newAccMax = np.max(val_accs)
-        oldAccMax = np.max(val_accs[:len(val_accs)-exit_iterations])
-        if (newAccMax - oldAccMax < exit_margin):
-            print(f'Validation Slow Learning detected {t}')
-            print(newAccMax)
-            print(oldAccMax)
+    if (t % 100 == 0):
+        print(f'{t} {train_loss} {train_acc} {val_loss} {val_acc}')
 #%%
 plt.plot(train_losses)
 #%%
