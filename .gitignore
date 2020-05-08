@@ -6,5 +6,6 @@ __pycache__
 .vs
 
 logs
+output
 
 DataSet
