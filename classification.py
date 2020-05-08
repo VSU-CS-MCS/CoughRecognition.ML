@@ -17,6 +17,8 @@ from sklearn.model_selection import *
 import torch
 
 import matplotlib.pyplot as plt
+import seaborn as sns
+sns.set_style('darkgrid')
 
 from charts import *
 from dataset import *
@@ -39,7 +41,7 @@ y = dataframe['cough_type']
 X_train, X_test, y_train, y_test = train_test_split(
     X,
     y,
-    test_size=0.2,
+    test_size=0.3,
     random_state=seed)
 X_test, X_validate, y_test, y_validate = train_test_split(
     X_test,
@@ -89,7 +91,7 @@ val_losses = []
 val_accs = []
 model_dir = 'output'
 model_path = os.path.join(model_dir, f'model.pt')
-for epoch in range(3000):
+for epoch in range(1000):
     y_train_pred_torch = model(X_train_torch)
     train_loss = loss_fn(y_train_pred_torch, y_train_torch)
     train_losses.append(train_loss.item())
@@ -115,14 +117,17 @@ for epoch in range(3000):
         print(f'{epoch} saved')
 
     if (epoch % 100 == 99):
-        print(f'{epoch} {train_loss} {train_acc} {val_loss} {val_acc}')
+        print(f'{epoch} Loss {train_loss} {val_loss}')
+        print(f'{epoch} Accuracy {train_acc} {val_acc}')
 #%%
 model.load_state_dict(torch.load(model_path))
 model.eval()
 #%%
-plt.plot(train_losses)
+plt.plot(train_losses, 'r', val_losses, 'b')
+plt.legend(['Train', 'Validate', 'Test'])
 #%%
-plt.plot(val_losses)
+plt.plot(train_accs, 'r', val_accs, 'b')
+plt.legend(['Train', 'Validate', 'Test'])
 #%%
 y_test_pred_torch = model(X_test_torch)
 test_loss = loss_fn(y_test_pred_torch, y_test_torch)
