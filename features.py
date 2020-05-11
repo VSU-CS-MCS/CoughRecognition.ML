@@ -27,10 +27,13 @@ def get_features2d(dataframe):
             signal,
             row.framerate,
             n_mfcc=40)
-        chromagram = librosa.feature.chroma_stft(
-            signal,
-            row.framerate)
-        features2d = [mfccs, chromagram]
+        # chromagram = librosa.feature.chroma_stft(
+        #     signal,
+        #     row.framerate)
+        features2d = [
+            mfccs,
+            # chromagram,
+        ]
         x.append(features2d)
     return x
 

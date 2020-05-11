@@ -85,12 +85,13 @@ model = torch.nn.Sequential(*model_args).to(device)
 loss_fn = torch.nn.CrossEntropyLoss()
 optimizer = torch.optim.AdamW(model.parameters())
 #%%
+model_dir = 'output'
+model_path = os.path.join(model_dir, f'model.pt')
+#%%
 train_losses = []
 train_accs = []
 val_losses = []
 val_accs = []
-model_dir = 'output'
-model_path = os.path.join(model_dir, f'model.pt')
 for epoch in range(1000):
     y_train_pred_torch = model(X_train_torch)
     train_loss = loss_fn(y_train_pred_torch, y_train_torch)
@@ -115,8 +116,9 @@ for epoch in range(1000):
     if (val_acc >= np.max(val_accs)):
         torch.save(model.state_dict(), model_path)
         print(f'{epoch} saved')
-
-    if (epoch % 100 == 99):
+        print(f'{epoch} Loss {train_loss} {val_loss}')
+        print(f'{epoch} Accuracy {train_acc} {val_acc}')
+    elif (epoch % 100 == 99):
         print(f'{epoch} Loss {train_loss} {val_loss}')
         print(f'{epoch} Accuracy {train_acc} {val_acc}')
 #%%
@@ -139,3 +141,5 @@ print(confusion_matrix(y_test, y_test_pred_cpu, normalize='true'))
 print(classification_report(y_test, y_test_pred_cpu))
 #%%
 accuracy_score(y_test, y_test_pred_cpu)
+#%%
+y_test.value_counts()
