@@ -1,4 +1,6 @@
 #%%
+from typing import *
+
 import numpy as np
 from numpy.fft import fft
 from scipy.stats import kurtosis, skew
@@ -6,7 +8,7 @@ import librosa
 import librosa.feature
 
 from domain import *
-
+#%%
 def get_time(wave_data: WaveData):
     return np.linspace(
         0, 
@@ -16,8 +18,11 @@ def get_time(wave_data: WaveData):
 def get_spectrum(wave_data: WaveData):
     return fft(wave_data.data)
 
-def get_mfcc(wave_data: WaveData, **kwargs):
-    return 
+def get_mfcc(wave_data: WaveData):
+    return librosa.feature.mfcc(
+        np.array([float(i) for i in wave_data.data]),
+        wave_data.framerate,
+        n_mfcc=40)
 
 def get_features2d(dataframe):
     x = list()
@@ -27,12 +32,8 @@ def get_features2d(dataframe):
             signal,
             row.framerate,
             n_mfcc=40)
-        # chromagram = librosa.feature.chroma_stft(
-        #     signal,
-        #     row.framerate)
         features2d = [
             mfccs,
-            # chromagram,
         ]
         x.append(features2d)
     return x

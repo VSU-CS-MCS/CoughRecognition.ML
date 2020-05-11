@@ -23,8 +23,12 @@ sns.set_style('darkgrid')
 from charts import *
 from dataset import *
 from features import *
-#%%
+#%% 
 seed = 666
+np.random.seed(seed)
+torch.manual_seed(seed)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
 #%%
 dataset = get_dataset()
 #%%
@@ -41,7 +45,7 @@ y = dataframe['cough_type']
 X_train, X_test, y_train, y_test = train_test_split(
     X,
     y,
-    test_size=0.3,
+    test_size=0.5,
     random_state=seed)
 X_test, X_validate, y_test, y_validate = train_test_split(
     X_test,
@@ -82,7 +86,8 @@ for layer_index in range(hidden_layers_amount - 1):
 model_args.append(torch.nn.Linear(units, n_classes))
 model = torch.nn.Sequential(*model_args).to(device)
 #%%
-loss_fn = torch.nn.CrossEntropyLoss()
+weights = torch.FloatTensor([1.0, 3.0, 3.0]).to(device)
+loss_fn = torch.nn.CrossEntropyLoss(weights)
 optimizer = torch.optim.AdamW(model.parameters())
 #%%
 model_dir = 'output'
@@ -113,7 +118,7 @@ for epoch in range(1000):
     train_loss.backward()
     optimizer.step()
 
-    if (val_acc >= np.max(val_accs)):
+    if (val_loss.item() <= np.min(val_losses)):
         torch.save(model.state_dict(), model_path)
         print(f'{epoch} saved')
         print(f'{epoch} Loss {train_loss} {val_loss}')
@@ -136,10 +141,9 @@ test_loss = loss_fn(y_test_pred_torch, y_test_torch)
 _, y_test_pred = torch.max(y_test_pred_torch, 1)
 y_test_pred_cpu = y_test_pred.cpu()
 #%%
-print(confusion_matrix(y_test, y_test_pred_cpu, normalize='true'))
+confusion = confusion_matrix(y_test, y_test_pred_cpu, normalize='true')
+sns.heatmap(confusion, annot=True)
 #%%
 print(classification_report(y_test, y_test_pred_cpu))
 #%%
 accuracy_score(y_test, y_test_pred_cpu)
-#%%
-y_test.value_counts()
