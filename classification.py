@@ -31,8 +31,8 @@ dataset = get_dataset()
 #%%
 dataframe = pd.DataFrame.from_records([w.to_dict() for w in dataset])
 #%%
-def get_features(df, n_mfcc=40):
-    x2d = get_features2d(df, n_mfcc=n_mfcc)
+def get_features(df, **kwargs):
+    x2d = get_features2d(df, **kwargs)
     x1d = get_features1d(x2d)
     feature_count = len(x1d[0])
     X = pd.DataFrame(x1d)
@@ -173,15 +173,13 @@ def train_test_multiple(
     X_train, X_validate, X_test,
     y_train, y_validate, y_test,
     feature_count,
-    seed = None,
-    silent = True):
+    **kwargs):
     results = [train_test(
         f'{checkpoint_path}_{i}',
         X_train, X_validate, X_test,
         y_train, y_validate, y_test,
         feature_count,
-        seed,
-        silent=silent) for i in range(train_amount)]
+        **kwargs) for i in range(train_amount)]
     confusions = [result[0] for result in results]
     accuracies = [result[1] for result in results]
     losses = [result[2] for result in results]
@@ -198,23 +196,23 @@ feature_params = {
     'n_mfcc': [40],
 }
 model_params = {
-    'dropout': [0.2, 0.3, 0.4],
+    'dropout': [0.2],
 }
 results_df = pd.DataFrame()
-split_amount = 3
+split_amount = 5
 train_amount = 1
 model_dir = 'output'
 #%%
-silent = True
-params_features = {}
+silent = False
+feature_params_cache = {}
 for n_mfcc in feature_params['n_mfcc']:
-    params_features[n_mfcc] = get_features(dataframe, n_mfcc)
+    feature_params_cache[n_mfcc] = get_features(dataframe, n_mfcc=n_mfcc)
 for split_i in range(split_amount):
     df_train, df_validate, df_test = dataframe_split(dataframe)
     for n_mfcc in feature_params['n_mfcc']:
         for dropout in model_params['dropout']:
             checkpoint_path = os.path.join(model_dir, f'model_{split_i}_{n_mfcc}_{dropout}')
-            X, y, feature_count = params_features[n_mfcc]
+            X, y, feature_count = feature_params_cache[n_mfcc]
 
             def get_split(df):
                 indexes = list(df.index.values)
@@ -240,11 +238,12 @@ for split_i in range(split_amount):
                             'confusion': confusions[i],
                             'accuracy': accuracies[i],
                             'loss': losses[i],
+                            'split': split_i,
                         }
                     ])
 #%%
-sns.scatterplot(x='dropout', y='loss', data=results_df)
+sns.scatterplot(x='dropout', y='loss', hue='split', data=results_df)
 plt.show()
 #%%
-sns.scatterplot(x='n_mfcc', y='loss', data=results_df)
+sns.scatterplot(x='n_mfcc', y='loss', hue='split', data=results_df)
 plt.show()

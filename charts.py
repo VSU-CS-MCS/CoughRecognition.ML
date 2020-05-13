@@ -13,8 +13,8 @@ def plot_spectrum(wave_data: WaveData):
     spectrum = get_spectrum(wave_data)
     plt.plot(spectrum)
 
-def plot_mfccs(wave_mfccs):
-    librosa.display.specshow(wave_mfccs, x_axis='time')
+def plot_mfccs(wave_mfccs, framerate):
+    librosa.display.specshow(wave_mfccs, sr=framerate, x_axis='time')
     plt.colorbar()
     plt.title('MFCC')
     plt.tight_layout()

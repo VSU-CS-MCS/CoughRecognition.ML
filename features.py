@@ -18,20 +18,35 @@ def get_time(wave_data: WaveData):
 def get_spectrum(wave_data: WaveData):
     return fft(wave_data.data)
 
-def get_mfcc(wave_data: WaveData):
+def get_mfcc(
+    signal,
+    framerate,
+    n_mfcc=40,
+    n_fft=4096):
     return librosa.feature.mfcc(
+        signal,
+        framerate,
+        n_mfcc=n_mfcc,
+        n_fft=n_fft)
+
+def get_wave_mfcc(
+    wave_data: WaveData,
+    **kwargs):
+    return get_mfcc(
         np.array([float(i) for i in wave_data.data]),
         wave_data.framerate,
-        n_mfcc=40)
+        **kwargs)
 
-def get_features2d(dataframe, n_mfcc=40):
+def get_features2d(
+    dataframe,
+    **kwargs):
     x = list()
     for index, row in dataframe.iterrows():
         signal = np.array([float(i) for i in row.data])
-        mfccs = librosa.feature.mfcc(
+        mfccs = get_mfcc(
             signal,
             row.framerate,
-            n_mfcc=n_mfcc)
+            **kwargs)
         features2d = [
             mfccs,
         ]
