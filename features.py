@@ -24,14 +24,14 @@ def get_mfcc(wave_data: WaveData):
         wave_data.framerate,
         n_mfcc=40)
 
-def get_features2d(dataframe):
+def get_features2d(dataframe, n_mfcc=40):
     x = list()
     for index, row in dataframe.iterrows():
         signal = np.array([float(i) for i in row.data])
         mfccs = librosa.feature.mfcc(
             signal,
             row.framerate,
-            n_mfcc=40)
+            n_mfcc=n_mfcc)
         features2d = [
             mfccs,
         ]

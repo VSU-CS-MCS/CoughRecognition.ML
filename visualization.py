@@ -9,7 +9,7 @@ n_dataframe = dataframe[dataframe['cough_type'] == CoughType.Normal]
 p_dataframe = dataframe[dataframe['cough_type'] == CoughType.Productive]
 w_dataframe = dataframe[dataframe['cough_type'] == CoughType.Whistling]
 #%%
-cough_data = p_dataframe.iloc[0]
+cough_data = p_dataframe.iloc[100]
 wave_data = WaveData()
 wave_data.data = cough_data.data
 wave_data.framerate = cough_data.framerate
