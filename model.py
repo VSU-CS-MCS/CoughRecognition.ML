@@ -5,10 +5,10 @@ import torch
 #%%
 def get_ffn_net(
     feature_count,
-    dropout = 0.1) -> torch.nn.Sequential:
-    units = 64
+    dropout = 0.1,
+    units = 64,
+    hidden_layers_amount = 8) -> torch.nn.Sequential:
     n_classes = 3
-    hidden_layers_amount = 8
     model_args = [
         torch.nn.Linear(feature_count, units),
         torch.nn.SELU(),

@@ -76,7 +76,8 @@ def train_test(
     y_train, y_validate, y_test,
     feature_count,
     seed = None,
-    silent = True):
+    silent = True,
+    **kwargs):
     checkpoint_path = f'{checkpoint_path}.pt'
     np.random.seed(seed)
     manual_seed = seed != None
@@ -94,7 +95,7 @@ def train_test(
     y_test_torch = torch.tensor(y_test.values).to(device)
     y_validate_torch = torch.tensor(y_validate.values).to(device)
 
-    model = get_ffn_net(feature_count).to(device)
+    model = get_ffn_net(feature_count, **kwargs).to(device)
 
     weights = torch.FloatTensor([1.0, 3.0, 3.0]).to(device)
     loss_fn = torch.nn.CrossEntropyLoss(weights)
@@ -192,26 +193,55 @@ def print_results(confusions, accuracies, losses):
     print(f'{accuracies[loss_min_index]} {losses[loss_min_index]}')
     sns.heatmap(confusions[loss_min_index], annot=True)
 #%%
+def get_param_combinations(param_groups):
+    args_set = list()
+    for param_group in param_groups:
+        param_keys = [key for key in param_group]
+        params_sets = product(*[value for key, value in param_group.items()])
+        args_set.extend([
+            {
+                param_keys[index]: param
+                for index, param in enumerate(param_set)
+            }
+            for param_set in params_sets
+        ])
+    return args_set
+#%%
 feature_params = {
     'n_mfcc': [40],
 }
-model_params = {
-    'dropout': [0.2],
-}
+model_param_groups = [
+    {
+        'units': [64],
+        'dropout': [0.1, 0.2],
+    },
+    {
+        'units': [128],
+        'dropout': [0.2, 0.4],
+    },
+]
+model_param_combinations = get_param_combinations(model_param_groups)
 results_df = pd.DataFrame()
-split_amount = 5
-train_amount = 1
+split_amount = 10
+train_amount = 5
 model_dir = 'output'
 #%%
-silent = False
 feature_params_cache = {}
 for n_mfcc in feature_params['n_mfcc']:
     feature_params_cache[n_mfcc] = get_features(dataframe, n_mfcc=n_mfcc)
+#%%
+silent = True
 for split_i in range(split_amount):
     df_train, df_validate, df_test = dataframe_split(dataframe)
     for n_mfcc in feature_params['n_mfcc']:
-        for dropout in model_params['dropout']:
-            checkpoint_path = os.path.join(model_dir, f'model_{split_i}_{n_mfcc}_{dropout}')
+        for model_param_combination in model_param_combinations:
+            model_param_path = f'{model_param_combination}' \
+                .replace('{', '') \
+                .replace('}', '') \
+                .replace("'", '') \
+                .replace(":", '') \
+                .replace(' ', '')
+            checkpoint_path = os.path.join(model_dir, f'model_{split_i}_{n_mfcc}_{model_param_path}')
             X, y, feature_count = feature_params_cache[n_mfcc]
 
             def get_split(df):
@@ -228,21 +258,20 @@ for split_i in range(split_amount):
                 X_train, X_validate, X_test,
                 y_train, y_validate, y_test,
                 feature_count,
-                silent=silent)
+                silent=silent,
+                **model_param_combination)
             for i in range(len(losses)):
-                results_df = results_df.append(
-                    [
-                        {
-                            'n_mfcc': n_mfcc,
-                            'dropout': dropout,
-                            'confusion': confusions[i],
-                            'accuracy': accuracies[i],
-                            'loss': losses[i],
-                            'split': split_i,
-                        }
-                    ])
+                result = {
+                    'n_mfcc': n_mfcc,
+                    'confusion': confusions[i],
+                    'accuracy': accuracies[i],
+                    'loss': losses[i],
+                    'split': split_i,
+                }
+                result.update(**model_param_combination)
+                results_df = results_df.append([result])
 #%%
-sns.scatterplot(x='dropout', y='loss', hue='split', data=results_df)
+sns.scatterplot(x='dropout', y='units', hue='loss', data=results_df)
 plt.show()
 #%%
 sns.scatterplot(x='n_mfcc', y='loss', hue='split', data=results_df)
