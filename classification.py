@@ -18,8 +18,10 @@ from sklearn.model_selection import *
 
 import torch
 
+from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 import seaborn as sns
+import plotly.express as px
 sns.set_style('darkgrid')
 
 from charts import *
@@ -207,33 +209,36 @@ def get_param_combinations(param_groups):
         ])
     return args_set
 #%%
-feature_params = {
+feature_param_groups = [{
     'n_mfcc': [40],
-}
+}]
 model_param_groups = [
     {
         'units': [64],
-        'dropout': [0.1, 0.2],
+        'dropout': [0.1],
     },
     {
         'units': [128],
-        'dropout': [0.2, 0.4],
+        'dropout': [0.1],
     },
 ]
 model_param_combinations = get_param_combinations(model_param_groups)
+feature_param_combinations = get_param_combinations(feature_param_groups)
 results_df = pd.DataFrame()
-split_amount = 10
-train_amount = 5
+split_amount = 1
+train_amount = 1
 model_dir = 'output'
 #%%
 feature_params_cache = {}
-for n_mfcc in feature_params['n_mfcc']:
-    feature_params_cache[n_mfcc] = get_features(dataframe, n_mfcc=n_mfcc)
+for feature_param_combination in feature_param_combinations:
+    feature_index = tuple(feature_param_combination)
+    feature_params_cache[feature_index] = get_features(dataframe, **feature_param_combination)
 #%%
 silent = True
 for split_i in range(split_amount):
     df_train, df_validate, df_test = dataframe_split(dataframe)
-    for n_mfcc in feature_params['n_mfcc']:
+    for feature_param_combination in feature_param_combinations:
+        feature_index = tuple(feature_param_combination)
         for model_param_combination in model_param_combinations:
             model_param_path = f'{model_param_combination}' \
                 .replace('{', '') \
@@ -241,8 +246,14 @@ for split_i in range(split_amount):
                 .replace("'", '') \
                 .replace(":", '') \
                 .replace(' ', '')
-            checkpoint_path = os.path.join(model_dir, f'model_{split_i}_{n_mfcc}_{model_param_path}')
-            X, y, feature_count = feature_params_cache[n_mfcc]
+            feature_param_path = f'{feature_param_combination}' \
+                .replace('{', '') \
+                .replace('}', '') \
+                .replace("'", '') \
+                .replace(":", '') \
+                .replace(' ', '')
+            checkpoint_path = os.path.join(model_dir, f'model_{split_i}_{feature_param_path}_{model_param_path}')
+            X, y, feature_count = feature_params_cache[feature_index]
 
             def get_split(df):
                 indexes = list(df.index.values)
@@ -262,17 +273,25 @@ for split_i in range(split_amount):
                 **model_param_combination)
             for i in range(len(losses)):
                 result = {
-                    'n_mfcc': n_mfcc,
                     'confusion': confusions[i],
                     'accuracy': accuracies[i],
                     'loss': losses[i],
                     'split': split_i,
                 }
+                result.update(**feature_param_combination)
                 result.update(**model_param_combination)
-                results_df = results_df.append([result])
+                results_df = results_df.append(
+                    [result],
+                    ignore_index=True)
 #%%
-sns.scatterplot(x='dropout', y='units', hue='loss', data=results_df)
-plt.show()
-#%%
-sns.scatterplot(x='n_mfcc', y='loss', hue='split', data=results_df)
-plt.show()
+min_indexes = results_df \
+    .groupby(['units', 'dropout', 'split'])['loss'] \
+    .idxmin()
+results_df_min = results_df.loc[min_indexes,]
+px.scatter_3d(
+    results_df_min,
+    x='dropout',
+    y='units',
+    z='loss',
+    color='split'
+)
