@@ -33,6 +33,13 @@ dataset = get_dataset()
 #%%
 dataframe = pd.DataFrame.from_records([w.to_dict() for w in dataset])
 #%%
+noise_index = dataframe['name'].str.contains('GeneratedNoise')
+df_noise = dataframe[noise_index]
+df_raw = dataframe[~noise_index]
+raw_to_noise = {}
+for index, row in df_raw.iterrows():
+    raw_to_noise[index] = df_noise['name'].str.contains(f"{row['name']} GeneratedNoise")
+#%%
 def get_features(df, **kwargs):
     x2d = get_features2d(df, **kwargs)
     x1d = get_features1d(x2d)
@@ -46,9 +53,9 @@ if torch.cuda.is_available():
 else:
     device = torch.device('cpu')
 #%%
-test_size = 0.25
-validate_size = 0.25
-def dataframe_split(df, seed = None):
+test_size = 0.15
+validate_size = 0.15
+def dataframe_split(df, seed = None) -> (pd.DataFrame, pd.DataFrame, pd.DataFrame):
     df_train, df_test = train_test_split(
         df,
         test_size=test_size+validate_size,
@@ -113,21 +120,22 @@ def train_test(
         train_loss = loss_fn(y_train_pred_torch, y_train_torch)
         train_losses.append(train_loss.item())
 
-        y_validate_pred_torch = model(X_validate_torch)
-        val_loss = loss_fn(y_validate_pred_torch, y_validate_torch)
-        val_losses.append(val_loss.item())
-
         _, y_train_pred = torch.max(y_train_pred_torch.cpu(), 1)
         train_acc = accuracy_score(y_train, y_train_pred)
         train_accs.append(train_acc)
 
-        _, y_validate_pred = torch.max(y_validate_pred_torch.cpu(), 1)
-        val_acc = accuracy_score(y_validate, y_validate_pred)
-        val_accs.append(val_acc)
-
         optimizer.zero_grad()
         train_loss.backward()
         optimizer.step()
+
+        with torch.no_grad():
+            y_validate_pred_torch = model(X_validate_torch)
+            val_loss = loss_fn(y_validate_pred_torch, y_validate_torch)
+            val_losses.append(val_loss.item())
+
+            _, y_validate_pred = torch.max(y_validate_pred_torch.cpu(), 1)
+            val_acc = accuracy_score(y_validate, y_validate_pred)
+            val_accs.append(val_acc)
 
         if (val_loss.item() <= np.min(val_losses)):
             torch.save(model.state_dict(), checkpoint_path)
@@ -209,23 +217,21 @@ def get_param_combinations(param_groups):
         ])
     return args_set
 #%%
-feature_param_groups = [{
-    'n_mfcc': [40],
-}]
+feature_param_groups = [
+    {
+        'n_mfcc': [40],
+    }
+]
 model_param_groups = [
     {
-        'units': [64],
-        'dropout': [0.1],
-    },
-    {
-        'units': [128],
-        'dropout': [0.1],
-    },
+        'units': [64, 128, 256],
+        'dropout': [0, 0.1, 0.2],
+    }
 ]
 model_param_combinations = get_param_combinations(model_param_groups)
 feature_param_combinations = get_param_combinations(feature_param_groups)
 results_df = pd.DataFrame()
-split_amount = 1
+split_amount = 5
 train_amount = 1
 model_dir = 'output'
 #%%
@@ -234,9 +240,21 @@ for feature_param_combination in feature_param_combinations:
     feature_index = tuple(feature_param_combination)
     feature_params_cache[feature_index] = get_features(dataframe, **feature_param_combination)
 #%%
+split_cache = {}
+for split_i in range(split_amount):
+    split_cache[split_i] = dataframe_split(df_raw)
+#%%
+for split_i in range(split_amount):
+    df_train, df_validate, df_test = split_cache[split_i]
+    for index, row in df_train.iterrows():
+        df_train = df_train.append(df_noise[raw_to_noise[index]])
+    for index, row in df_validate.iterrows():
+        df_validate = df_validate.append(df_noise[raw_to_noise[index]])
+    split_cache[split_i] = (df_train, df_validate, df_test)
+#%%
 silent = True
 for split_i in range(split_amount):
-    df_train, df_validate, df_test = dataframe_split(dataframe)
+    df_train, df_validate, df_test = split_cache[split_i]
     for feature_param_combination in feature_param_combinations:
         feature_index = tuple(feature_param_combination)
         for model_param_combination in model_param_combinations:
@@ -293,5 +311,17 @@ px.scatter_3d(
     x='dropout',
     y='units',
     z='loss',
+    color='split'
+)
+#%%
+max_indexes = results_df \
+    .groupby(['split'])['accuracy'] \
+    .idxmax()
+results_df_min = results_df.loc[max_indexes,]
+px.scatter_3d(
+    results_df_min,
+    x='dropout',
+    y='units',
+    z='accuracy',
     color='split'
 )
