@@ -164,17 +164,23 @@ def train_test(
 
     if not silent:
         plt.plot(train_losses, 'r', val_losses, 'b')
-        plt.legend(['Train', 'Validate', 'Test'])
+        plt.legend(['Train', 'Validate'])
         plt.show()
 
         plt.plot(train_accs, 'r', val_accs, 'b')
-        plt.legend(['Train', 'Validate', 'Test'])
+        plt.legend(['Train', 'Validate'])
         plt.show()
 
         plot_confusion(confusion)
 
         print(classification_report(y_test, y_test_pred_cpu))
-    return confusion, accuracy, test_loss.item()
+    
+    return \
+        confusion, \
+        accuracy, \
+        test_loss.item(), \
+        train_losses, train_accs, \
+        val_losses, val_accs
 #%%
 def train_test_multiple(
     train_amount,
@@ -183,23 +189,12 @@ def train_test_multiple(
     y_train, y_validate, y_test,
     feature_count,
     **kwargs):
-    results = [train_test(
-        f'{checkpoint_path}_{i}',
+    return [train_test(
+        f'{checkpoint_path}_train{i}',
         X_train, X_validate, X_test,
         y_train, y_validate, y_test,
         feature_count,
         **kwargs) for i in range(train_amount)]
-    confusions = [result[0] for result in results]
-    accuracies = [result[1] for result in results]
-    losses = [result[2] for result in results]
-    return confusions, accuracies, losses
-#%%
-def print_results(confusions, accuracies, losses):
-    print(f'{np.mean(accuracies)} +-{np.std(accuracies)}')
-    print(f'{np.mean(losses)} +-{np.std(losses)}')
-    loss_min_index = np.argmin(losses)
-    print(f'{accuracies[loss_min_index]} {losses[loss_min_index]}')
-    sns.heatmap(confusions[loss_min_index], annot=True)
 #%%
 def get_param_combinations(param_groups):
     args_set = list()
@@ -266,7 +261,7 @@ for split_i in range(split_amount):
                 .replace("'", '') \
                 .replace(":", '') \
                 .replace(' ', '')
-            checkpoint_path = os.path.join(model_dir, f'model_{split_i}_{feature_param_path}_{model_param_path}')
+            checkpoint_path = os.path.join(model_dir, f'model_split{split_i}_{feature_param_path}_{model_param_path}')
             X, feature_count = feature_params_cache[feature_index]
 
             def get_split(df):
@@ -277,7 +272,7 @@ for split_i in range(split_amount):
             X_validate, y_validate = get_split(df_validate)
             X_test, y_test = get_split(df_test)
 
-            confusions, accuracies, losses = train_test_multiple(
+            results = train_test_multiple(
                 train_amount,
                 checkpoint_path,
                 X_train, X_validate, X_test,
@@ -285,11 +280,16 @@ for split_i in range(split_amount):
                 feature_count,
                 silent=silent,
                 **model_param_combination)
-            for i in range(len(losses)):
+            
+            for result in results:
                 result = {
-                    'confusion': confusions[i],
-                    'accuracy': accuracies[i],
-                    'loss': losses[i],
+                    'confusion': result[0],
+                    'accuracy': result[1],
+                    'loss': result[2],
+                    'train_losses': result[3],
+                    'train_accs': result[4],
+                    'val_losses': result[5],
+                    'val_accs': result[6],
                     'split': split_i,
                 }
                 result.update(**feature_param_combination)
@@ -301,7 +301,7 @@ for split_i in range(split_amount):
 results_df['split'] = results_df['split'].astype(str)
 #%%
 min_indexes = results_df \
-    .groupby(['split', 'layers'])['loss'] \
+    .groupby(['split', 'layers', 'units'])['loss'] \
     .idxmin()
 results_df_min = results_df.loc[min_indexes,]
 px.scatter_3d(
@@ -331,3 +331,13 @@ px.scatter_3d(
 min_index = results_df['loss'].idxmin()
 min_item = results_df.iloc[min_index]
 plot_confusion(min_item['confusion'])
+
+plt.plot(min_item['train_losses'], 'r', min_item['val_losses'], 'b')
+plt.legend(['Train', 'Validate'])
+plt.show()
+
+plt.plot(min_item['train_accs'], 'r', min_item['val_accs'], 'b')
+plt.legend(['Train', 'Validate'])
+plt.show()
+#%%
+sorted_results_df = results_df.sort_values(['split', 'loss'])
