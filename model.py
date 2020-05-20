@@ -7,14 +7,14 @@ def get_ffn_net(
     feature_count,
     dropout = 0.1,
     units = 64,
-    hidden_layers_amount = 8) -> torch.nn.Sequential:
+    layers = 8) -> torch.nn.Sequential:
     n_classes = 3
     model_args = [
         torch.nn.Linear(feature_count, units),
         torch.nn.SELU(),
         torch.nn.AlphaDropout(dropout),
     ]
-    for layer_index in range(hidden_layers_amount - 1):
+    for layer_index in range(layers - 1):
         model_args.extend([
             torch.nn.Linear(units, units),
             torch.nn.SELU(),

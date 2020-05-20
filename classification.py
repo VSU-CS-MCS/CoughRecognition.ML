@@ -115,7 +115,7 @@ def train_test(
     train_accs = []
     val_losses = []
     val_accs = []
-    for epoch in range(1000):
+    for epoch in range(2000):
         y_train_pred_torch = model(X_train_torch)
         train_loss = loss_fn(y_train_pred_torch, y_train_torch)
         train_losses.append(train_loss.item())
@@ -225,12 +225,12 @@ feature_param_groups = [
 model_param_groups = [
     {
         'units': [64, 128, 256],
-        'dropout': [0, 0.1, 0.2],
+        'dropout': [0, 0.1, 0.2, 0.3, 0.4],
+        'layers': range(1, 11)
     }
 ]
 model_param_combinations = get_param_combinations(model_param_groups)
 feature_param_combinations = get_param_combinations(feature_param_groups)
-results_df = pd.DataFrame()
 split_amount = 5
 train_amount = 1
 model_dir = 'output'
@@ -240,6 +240,7 @@ for feature_param_combination in feature_param_combinations:
     feature_index = tuple(feature_param_combination)
     feature_params_cache[feature_index] = get_features(dataframe, **feature_param_combination)
 #%%
+results_df = pd.DataFrame()
 split_cache = {}
 for split_i in range(split_amount):
     split_cache[split_i] = dataframe_split(df_raw)
@@ -248,8 +249,6 @@ for split_i in range(split_amount):
     df_train, df_validate, df_test = split_cache[split_i]
     for index, row in df_train.iterrows():
         df_train = df_train.append(df_noise[raw_to_noise[index]])
-    for index, row in df_validate.iterrows():
-        df_validate = df_validate.append(df_noise[raw_to_noise[index]])
     split_cache[split_i] = (df_train, df_validate, df_test)
 #%%
 silent = True
@@ -314,10 +313,10 @@ px.scatter_3d(
     color='split'
 )
 #%%
-max_indexes = results_df \
-    .groupby(['split'])['accuracy'] \
-    .idxmax()
-results_df_min = results_df.loc[max_indexes,]
+min_indexes = results_df \
+    .groupby(['split'])['loss'] \
+    .idxmin()
+results_df_min = results_df.loc[min_indexes,]
 px.scatter_3d(
     results_df_min,
     x='dropout',
