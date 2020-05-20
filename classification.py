@@ -40,21 +40,22 @@ raw_to_noise = {}
 for index, row in df_raw.iterrows():
     raw_to_noise[index] = df_noise['name'].str.contains(f"{row['name']} GeneratedNoise")
 #%%
+y = dataframe['cough_type']
+#%%
 def get_features(df, **kwargs):
     x2d = get_features2d(df, **kwargs)
     x1d = get_features1d(x2d)
     feature_count = len(x1d[0])
     X = pd.DataFrame(x1d)
-    y = df['cough_type']
-    return X, y, feature_count
+    return X, feature_count
 #%%
 if torch.cuda.is_available():
     device = torch.device('cuda')
 else:
     device = torch.device('cpu')
 #%%
-test_size = 0.15
-validate_size = 0.15
+test_size = 0.1
+validate_size = 0.1
 def dataframe_split(df, seed = None) -> (pd.DataFrame, pd.DataFrame, pd.DataFrame):
     df_train, df_test = train_test_split(
         df,
@@ -170,10 +171,7 @@ def train_test(
         plt.legend(['Train', 'Validate', 'Test'])
         plt.show()
 
-        labels = ['Dry', 'Wet', 'Whistling']
-        sns.heatmap(confusion, annot=True,
-            xticklabels=labels, yticklabels=labels)
-        plt.show()
+        plot_confusion(confusion)
 
         print(classification_report(y_test, y_test_pred_cpu))
     return confusion, accuracy, test_loss.item()
@@ -225,13 +223,13 @@ feature_param_groups = [
 model_param_groups = [
     {
         'units': [64, 128],
-        'dropout': [0, 0.1, 0.2, 0.3],
-        'layers': [1, 3, 4, 6, 8, 10],
+        'dropout': [0, 0.1, 0.2],
+        'layers': [4, 8, 16],
     }
 ]
 model_param_combinations = get_param_combinations(model_param_groups)
 feature_param_combinations = get_param_combinations(feature_param_groups)
-split_amount = 10
+split_amount = 1
 train_amount = 1
 model_dir = 'output'
 #%%
@@ -240,16 +238,15 @@ for feature_param_combination in feature_param_combinations:
     feature_index = tuple(feature_param_combination)
     feature_params_cache[feature_index] = get_features(dataframe, **feature_param_combination)
 #%%
-results_df = pd.DataFrame()
 split_cache = {}
 for split_i in range(split_amount):
     split_cache[split_i] = dataframe_split(df_raw)
-#%%
-for split_i in range(split_amount):
     df_train, df_validate, df_test = split_cache[split_i]
     for index, row in df_train.iterrows():
         df_train = df_train.append(df_noise[raw_to_noise[index]])
     split_cache[split_i] = (df_train, df_validate, df_test)
+#%%
+results_df = pd.DataFrame()
 #%%
 silent = True
 for split_i in range(split_amount):
@@ -270,7 +267,7 @@ for split_i in range(split_amount):
                 .replace(":", '') \
                 .replace(' ', '')
             checkpoint_path = os.path.join(model_dir, f'model_{split_i}_{feature_param_path}_{model_param_path}')
-            X, y, feature_count = feature_params_cache[feature_index]
+            X, feature_count = feature_params_cache[feature_index]
 
             def get_split(df):
                 indexes = list(df.index.values)
@@ -301,16 +298,20 @@ for split_i in range(split_amount):
                     [result],
                     ignore_index=True)
 #%%
+results_df['split'] = results_df['split'].astype(str)
+#%%
 min_indexes = results_df \
-    .groupby(['units', 'dropout', 'split'])['loss'] \
+    .groupby(['split', 'layers'])['loss'] \
     .idxmin()
 results_df_min = results_df.loc[min_indexes,]
 px.scatter_3d(
     results_df_min,
-    x='dropout',
+    x='layers',
     y='units',
     z='loss',
-    color='split'
+    color='split',
+    symbol='dropout',
+    color_discrete_sequence=px.colors.sequential.Rainbow
 )
 #%%
 min_indexes = results_df \
@@ -319,8 +320,14 @@ min_indexes = results_df \
 results_df_min = results_df.loc[min_indexes,]
 px.scatter_3d(
     results_df_min,
-    x='dropout',
+    x='layers',
     y='units',
-    z='accuracy',
-    color='split'
+    z='loss',
+    color='split',
+    symbol='dropout',
+    color_discrete_sequence=px.colors.sequential.Rainbow
 )
+#%%
+min_index = results_df['loss'].idxmin()
+min_item = results_df.iloc[min_index]
+plot_confusion(min_item['confusion'])
