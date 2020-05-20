@@ -115,7 +115,7 @@ def train_test(
     train_accs = []
     val_losses = []
     val_accs = []
-    for epoch in range(2000):
+    for epoch in range(1000):
         y_train_pred_torch = model(X_train_torch)
         train_loss = loss_fn(y_train_pred_torch, y_train_torch)
         train_losses.append(train_loss.item())
@@ -224,14 +224,14 @@ feature_param_groups = [
 ]
 model_param_groups = [
     {
-        'units': [64, 128, 256],
-        'dropout': [0, 0.1, 0.2, 0.3, 0.4],
-        'layers': range(1, 11)
+        'units': [64, 128],
+        'dropout': [0, 0.1, 0.2, 0.3],
+        'layers': [1, 3, 4, 6, 8, 10],
     }
 ]
 model_param_combinations = get_param_combinations(model_param_groups)
 feature_param_combinations = get_param_combinations(feature_param_groups)
-split_amount = 5
+split_amount = 10
 train_amount = 1
 model_dir = 'output'
 #%%
