@@ -117,6 +117,7 @@ def train_test(
     val_losses = []
     val_accs = []
     for epoch in range(1000):
+        optimizer.zero_grad()
         y_train_pred_torch = model(X_train_torch)
         train_loss = loss_fn(y_train_pred_torch, y_train_torch)
         train_losses.append(train_loss.item())
@@ -125,7 +126,6 @@ def train_test(
         train_acc = accuracy_score(y_train, y_train_pred)
         train_accs.append(train_acc)
 
-        optimizer.zero_grad()
         train_loss.backward()
         optimizer.step()
 
@@ -213,18 +213,19 @@ def get_param_combinations(param_groups):
 feature_param_groups = [
     {
         'n_mfcc': [40],
+        'n_fft': [1024, 4096],
     }
 ]
 model_param_groups = [
     {
-        'units': [64, 128],
-        'dropout': [0, 0.1, 0.2],
-        'layers': [4, 8, 16],
+        'units': [64],
+        'dropout': [0, 0.1],
+        'layers': [4, 8],
     }
 ]
 model_param_combinations = get_param_combinations(model_param_groups)
 feature_param_combinations = get_param_combinations(feature_param_groups)
-split_amount = 1
+split_amount = 3
 train_amount = 1
 model_dir = 'output'
 #%%
@@ -301,6 +302,20 @@ for split_i in range(split_amount):
 results_df['split'] = results_df['split'].astype(str)
 #%%
 min_indexes = results_df \
+    .groupby(['n_mfcc', 'layers', 'dropout'])['loss'] \
+    .idxmin()
+results_df_min = results_df.loc[min_indexes,]
+px.scatter_3d(
+    results_df_min,
+    x='layers',
+    y='n_fft',
+    z='loss',
+    color='split',
+    symbol='dropout',
+    color_discrete_sequence=px.colors.sequential.Rainbow
+)
+#%%
+min_indexes = results_df \
     .groupby(['split', 'layers', 'units'])['loss'] \
     .idxmin()
 results_df_min = results_df.loc[min_indexes,]
@@ -341,3 +356,5 @@ plt.legend(['Train', 'Validate'])
 plt.show()
 #%%
 sorted_results_df = results_df.sort_values(['split', 'loss'])
+#%%
+sorted_results_df[['accuracy', 'loss', 'n_fft', 'layers', 'units', 'dropout']]
